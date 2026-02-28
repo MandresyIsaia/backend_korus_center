@@ -9,6 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev-refresh-secret";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "15m";
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
+const Brevo = require('@getbrevo/brevo');
 
 const buildError = (message, status) => {
   const error = new Error(message);
@@ -18,6 +19,70 @@ const buildError = (message, status) => {
 
 const generateVerificationCode = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
+
+const createBrevoClient = () => {
+  const apiKey = process.env.BREVO_API_KEY;
+
+  if (!apiKey) {
+    return null;
+  }
+
+  const apiInstance = new Brevo.TransactionalEmailsApi();
+  apiInstance.setApiKey(
+    Brevo.TransactionalEmailsApiApiKeys.apiKey,
+    apiKey
+  );
+
+  return apiInstance;
+};
+const sendVerificationEmail2 = async (email, code) => {
+  const client = createBrevoClient();
+
+  if (!client) {
+    console.log(`Code de verification pour ${email}: ${code}`);
+    return;
+  }
+
+  const senderEmail = process.env.EMAIL_SENDER_ADDRESS;
+  const senderName = process.env.EMAIL_SENDER_NAME || "KORUS Center";
+
+  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+
+  sendSmtpEmail.subject = "Verification de votre email";
+  sendSmtpEmail.textContent = `Votre code de verification est: ${code}`;
+  sendSmtpEmail.htmlContent = `
+    <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; background: #f8fafc; padding: 28px;">
+      <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 20px; padding: 28px; border: 1px solid #f1f5f9; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 900; font-size: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);">K</div>
+          <div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a;">KORUS <span style="color:#f59e0b;">Center</span></div>
+            <div style="font-size: 12px; color: #94a3b8;">Verification de compte</div>
+          </div>
+        </div>
+        <h2 style="margin: 0 0 8px; color: #0f172a; font-size: 20px;">Verification de votre email</h2>
+        <p style="margin: 0 0 16px; color: #334155;">Bonjour,</p>
+        <p style="margin: 0 0 16px; color: #334155;">Saisissez ce code pour confirmer votre adresse email :</p>
+        <div style="font-size: 28px; letter-spacing: 6px; font-weight: 800; color: #0f172a; background: #f8fafc; padding: 12px 16px; text-align: center; border-radius: 12px; border: 1px solid #f1f5f9;">${code}</div>
+        <p style="margin: 16px 0 0; color: #94a3b8;">Ce code expire dans 10 minutes.</p>
+      </div>
+    </div>
+  `;
+
+  sendSmtpEmail.sender = {
+    name: senderName,
+    email: senderEmail
+  };
+
+  sendSmtpEmail.to = [{ email }];
+
+  try {
+    await client.sendTransacEmail(sendSmtpEmail);
+  } catch (error) {
+    console.error("Erreur envoi Brevo :", error.response?.body || error);
+    throw error;
+  }
+};
 
 const createTransporter = () => {
   const host = process.env.SMTP_HOST;
@@ -87,7 +152,7 @@ const issueVerificationCode = async (user) => {
   user.email_verification_expires = expiresAt;
   await user.save();
 
-  await sendVerificationEmail(user.email, code);
+  await sendVerificationEmail2(user.email, code);
 };
 
 const registerVendeur = async (payload) => {
