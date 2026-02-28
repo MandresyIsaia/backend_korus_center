@@ -27,13 +27,10 @@ const createBrevoClient = () => {
     return null;
   }
 
-  const apiInstance = new Brevo.TransactionalEmailsApi();
-  apiInstance.setApiKey(
-    Brevo.TransactionalEmailsApiApiKeys.apiKey,
-    apiKey
-  );
+  const apiClient = brevo.ApiClient.instance;
+  apiClient.authentications['api-key'].apiKey = apiKey;
 
-  return apiInstance;
+  return new brevo.TransactionalEmailsApi();
 };
 const sendVerificationEmail2 = async (email, code) => {
   const client = createBrevoClient();
@@ -46,12 +43,16 @@ const sendVerificationEmail2 = async (email, code) => {
   const senderEmail = process.env.EMAIL_SENDER_ADDRESS;
   const senderName = process.env.EMAIL_SENDER_NAME || "KORUS Center";
 
-  const sendSmtpEmail = new Brevo.SendSmtpEmail();
-
-  sendSmtpEmail.subject = "Verification de votre email";
-  sendSmtpEmail.textContent = `Votre code de verification est: ${code}`;
-  sendSmtpEmail.htmlContent = `
-    <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; background: #f8fafc; padding: 28px;">
+  const emailData = {
+    subject: "Verification de votre email",
+    sender: {
+      name: senderName,
+      email: senderEmail
+    },
+    to: [{ email }],
+    textContent: `Votre code de verification est: ${code}`,
+    htmlContent: `
+      <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; background: #f8fafc; padding: 28px;">
       <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 20px; padding: 28px; border: 1px solid #f1f5f9; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
           <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 900; font-size: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);">K</div>
@@ -67,17 +68,11 @@ const sendVerificationEmail2 = async (email, code) => {
         <p style="margin: 16px 0 0; color: #94a3b8;">Ce code expire dans 10 minutes.</p>
       </div>
     </div>
-  `;
-
-  sendSmtpEmail.sender = {
-    name: senderName,
-    email: senderEmail
+    `
   };
 
-  sendSmtpEmail.to = [{ email }];
-
   try {
-    await client.sendTransacEmail(sendSmtpEmail);
+    await client.sendTransacEmail(emailData);
   } catch (error) {
     console.error("Erreur envoi Brevo :", error.response?.body || error);
     throw error;
