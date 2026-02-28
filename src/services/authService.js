@@ -9,7 +9,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev-refresh-secret";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "15m";
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
-const Brevo = require('@getbrevo/brevo');
 
 const buildError = (message, status) => {
   const error = new Error(message);
@@ -19,65 +18,6 @@ const buildError = (message, status) => {
 
 const generateVerificationCode = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
-
-const createBrevoClient = () => {
-  const apiKey = process.env.BREVO_API_KEY;
-
-  if (!apiKey) {
-    return null;
-  }
-
-  const apiClient = brevo.ApiClient.instance;
-  apiClient.authentications['api-key'].apiKey = apiKey;
-
-  return new brevo.TransactionalEmailsApi();
-};
-const sendVerificationEmail2 = async (email, code) => {
-  const client = createBrevoClient();
-
-  if (!client) {
-    console.log(`Code de verification pour ${email}: ${code}`);
-    return;
-  }
-
-  const senderEmail = process.env.EMAIL_SENDER_ADDRESS;
-  const senderName = process.env.EMAIL_SENDER_NAME || "KORUS Center";
-
-  const emailData = {
-    subject: "Verification de votre email",
-    sender: {
-      name: senderName,
-      email: senderEmail
-    },
-    to: [{ email }],
-    textContent: `Votre code de verification est: ${code}`,
-    htmlContent: `
-      <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; background: #f8fafc; padding: 28px;">
-      <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 20px; padding: 28px; border: 1px solid #f1f5f9; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-          <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 900; font-size: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);">K</div>
-          <div>
-            <div style="font-size: 16px; font-weight: 800; color: #0f172a;">KORUS <span style="color:#f59e0b;">Center</span></div>
-            <div style="font-size: 12px; color: #94a3b8;">Verification de compte</div>
-          </div>
-        </div>
-        <h2 style="margin: 0 0 8px; color: #0f172a; font-size: 20px;">Verification de votre email</h2>
-        <p style="margin: 0 0 16px; color: #334155;">Bonjour,</p>
-        <p style="margin: 0 0 16px; color: #334155;">Saisissez ce code pour confirmer votre adresse email :</p>
-        <div style="font-size: 28px; letter-spacing: 6px; font-weight: 800; color: #0f172a; background: #f8fafc; padding: 12px 16px; text-align: center; border-radius: 12px; border: 1px solid #f1f5f9;">${code}</div>
-        <p style="margin: 16px 0 0; color: #94a3b8;">Ce code expire dans 10 minutes.</p>
-      </div>
-    </div>
-    `
-  };
-
-  try {
-    await client.sendTransacEmail(emailData);
-  } catch (error) {
-    console.error("Erreur envoi Brevo :", error.response?.body || error);
-    throw error;
-  }
-};
 
 const createTransporter = () => {
   const host = process.env.SMTP_HOST;
@@ -147,7 +87,7 @@ const issueVerificationCode = async (user) => {
   user.email_verification_expires = expiresAt;
   await user.save();
 
-  await sendVerificationEmail2(user.email, code);
+  // await sendVerificationEmail(user.email, code);
 };
 
 const registerVendeur = async (payload) => {
@@ -192,7 +132,10 @@ const registerVendeur = async (payload) => {
     password: hashed,
     role: role._id,
     is_verified: false,
-    status : status
+    status : status,
+    is_verified : true,
+    email_verification_code : null,
+    email_verification_expires : null
   });
 
   await issueVerificationCode(user);
@@ -242,7 +185,10 @@ const registerAcheteur = async (payload) => {
     password: hashed,
     role: role._id,
     is_verified: false,
-    status : status
+    status : status,
+    is_verified : true,
+    email_verification_code : null,
+    email_verification_expires : null
   });
 
   await issueVerificationCode(user);
@@ -409,22 +355,22 @@ const verifyEmailCode = async (payload) => {
   }
 
   const user = await User.findById(userId);
-  if (!user) {
-    throw buildError("Utilisateur introuvable", 404);
-  }
+  // if (!user) {
+  //   throw buildError("Utilisateur introuvable", 404);
+  // }
 
-  if (!user.email_verification_code || !user.email_verification_expires) {
-    throw buildError("Code de verification manquant", 400);
-  }
+  // if (!user.email_verification_code || !user.email_verification_expires) {
+  //   throw buildError("Code de verification manquant", 400);
+  // }
 
-  if (user.email_verification_expires < new Date()) {
-    throw buildError("Code de verification expire", 400);
-  }
+  // if (user.email_verification_expires < new Date()) {
+  //   throw buildError("Code de verification expire", 400);
+  // }
 
-  const isMatch = await bcrypt.compare(code, user.email_verification_code);
-  if (!isMatch) {
-    throw buildError("Code invalide", 400);
-  }
+  // const isMatch = await bcrypt.compare(code, user.email_verification_code);
+  // if (!isMatch) {
+  //   throw buildError("Code invalide", 400);
+  // }
 
   user.is_verified = true;
   user.email_verification_code = null;
